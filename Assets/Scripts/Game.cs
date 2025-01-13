@@ -1,4 +1,4 @@
-﻿using System.Collections;
+﻿﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -140,7 +140,7 @@ public class Game : MonoBehaviour
     public void RecordMove(string move)
     {
         moveHistory.Add(move);
-        Debug.Log($"Move Recorded: {move}");
+        Debug.Log($"Move: {move}");
     }
 
     // Get the move history

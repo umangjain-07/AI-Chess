@@ -21,117 +21,139 @@ public class MovePlate : MonoBehaviour
     }
 
     public void OnMouseUp()
-{
-    controller = GameObject.FindGameObjectWithTag("GameController");
-    Game gameController = controller.GetComponent<Game>();
-
-    Chessman chessman = reference.GetComponent<Chessman>();
-    string pieceColor = chessman.player;
-    string pieceName = reference.name.Replace("white_", "").Replace("black_", "");
-
-    int startX = chessman.GetXBoard();
-    int startY = chessman.GetYBoard();
-    int endX = matrixX;
-    int endY = matrixY;
-
-    // Check if this move is a castling move
-    if (castling && chessman.name.Contains("king"))
     {
-        HandleCastlingMove(gameController, chessman);
-        return; // Exit after handling castling to avoid regular move logic
-    }
+        controller = GameObject.FindGameObjectWithTag("GameController");
+        Game gameController = controller.GetComponent<Game>();
 
-    string startCoord = ConvertToChessNotation(startX, startY, pieceColor);
-    string endCoord = ConvertToChessNotation(endX, endY, pieceColor);
+        Chessman chessman = reference.GetComponent<Chessman>();
+        string pieceColor = chessman.player; // Piece's player color
+        string pieceName = reference.name.Replace("white_", "").Replace("black_", "");
 
-    string moveDescription = $"{pieceColor} {pieceName} moves from {startCoord} to {endCoord}";
+        int startX = chessman.GetXBoard();
+        int startY = chessman.GetYBoard();
+        int endX = matrixX;
+        int endY = matrixY;
 
-    if (attack)
-    {
-        GameObject cp = gameController.GetPosition(matrixX, matrixY);
-        string capturedPiece = cp.name.Replace("white_", "").Replace("black_", "");
-        moveDescription += $" and captures {capturedPiece}";
-
-        if (cp.name == "white_king") gameController.Winner("black");
-        if (cp.name == "black_king") gameController.Winner("white");
-
-        Destroy(cp);
-    }
-
-    gameController.RecordMove(moveDescription);
-
-    // Update the board state for the regular move
-    gameController.SetPositionEmpty(startX, startY);
-    chessman.SetXBoard(matrixX);
-    chessman.SetYBoard(matrixY);
-    chessman.SetCoords();
-    gameController.SetPosition(reference);
-
-    chessman.hasMoved = true; // Mark the piece as having moved
-    chessman.CheckPawnPromotion();
-
-    gameController.NextTurn();
-    chessman.DestroyMovePlates();
-}
-
-private void HandleCastlingMove(Game gameController, Chessman king)
-{
-    // Clear the original position of the king
-    gameController.SetPositionEmpty(king.GetXBoard(), king.GetYBoard());
-
-    if (matrixX == king.GetXBoard() + 2) // Kingside castling
-    {
-        Debug.Log("Kingside castling executed for " + king.name);
-
-        // Move the Kingside rook
-        GameObject rook = gameController.GetPosition(king.GetXBoard() + 3, king.GetYBoard());
-        if (rook != null)
+        // Handle castling moves
+        if (castling && chessman.name.Contains("king"))
         {
-            Chessman rookChessman = rook.GetComponent<Chessman>();
-            gameController.SetPositionEmpty(rookChessman.GetXBoard(), rookChessman.GetYBoard()); // Clear the old rook position
-            rookChessman.SetXBoard(king.GetXBoard() + 1); // Move the rook
-            rookChessman.SetYBoard(king.GetYBoard());
-            rookChessman.SetCoords();
-            gameController.SetPosition(rook); // Update the board array
-            rookChessman.hasMoved = true;
+            HandleCastlingMove(gameController, chessman);
+            return; // Exit after handling castling to avoid regular move logic
         }
-    }
-    else if (matrixX == king.GetXBoard() - 2) // Queenside castling
-    {
-        Debug.Log("Queenside castling executed for " + king.name);
 
-        // Move the Queenside rook
-        GameObject rook = gameController.GetPosition(king.GetXBoard() - 4, king.GetYBoard());
-        if (rook != null)
+        // Use the new CoordinateSystem for SAN and board updates
+        string startCoord = CoordinateSystem.ConvertToChessNotation(startX, startY, pieceColor);
+        string endCoord = CoordinateSystem.ConvertToChessNotation(endX, endY, pieceColor);
+        string moveDescription = CoordinateSystem.GenerateSAN(
+            pieceName,
+            startCoord,
+            endCoord,
+            attack,
+            false, // Not castling
+            false // Not kingside (irrelevant here)
+        );
+
+        // Handle attacks
+        if (attack)
         {
-            Chessman rookChessman = rook.GetComponent<Chessman>();
-            gameController.SetPositionEmpty(rookChessman.GetXBoard(), rookChessman.GetYBoard()); // Clear the old rook position
-            rookChessman.SetXBoard(king.GetXBoard() - 1); // Move the rook
-            rookChessman.SetYBoard(king.GetYBoard());
-            rookChessman.SetCoords();
-            gameController.SetPosition(rook); // Update the board array
-            rookChessman.hasMoved = true;
+            GameObject capturedPiece = gameController.GetPosition(matrixX, matrixY);
+            string capturedPieceName = capturedPiece.name.Replace("white_", "").Replace("black_", "");
+            moveDescription += $" (captures {capturedPieceName})";
+
+            // Check if a king is captured, ending the game
+            if (capturedPiece.name == "white_king") gameController.Winner("black");
+            if (capturedPiece.name == "black_king") gameController.Winner("white");
+
+            Destroy(capturedPiece); // Remove the captured piece
         }
+
+        
+
+        // Record the move in the game's history
+        gameController.RecordMove(moveDescription);
+
+        // Update the board state for the moved piece
+        gameController.SetPositionEmpty(startX, startY);
+        chessman.SetXBoard(matrixX);
+        chessman.SetYBoard(matrixY);
+        chessman.SetCoords();
+        gameController.SetPosition(reference);
+
+        // Mark the piece as having moved
+        chessman.hasMoved = true;
+        chessman.CheckPawnPromotion();
+
+        // Switch to the next player's turn
+        gameController.NextTurn();
+
+        // Destroy all move plates after the move
+        chessman.DestroyMovePlates();
     }
 
-    // Move the king to the new position
-    king.SetXBoard(matrixX);
-    king.SetYBoard(matrixY);
-    king.SetCoords();
-    gameController.SetPosition(reference); // Update the king's new position on the board
-    king.hasMoved = true;
-
-    // Record the move and switch turns
-    gameController.RecordMove($"{king.player} king castles");
-    gameController.NextTurn();
-    king.DestroyMovePlates();
-}
-
-    private string ConvertToChessNotation(int x, int y, string playerColor)
+    private void HandleCastlingMove(Game gameController, Chessman king)
     {
-        char file = (char)('a' + x);
-        int rank = playerColor == "white" ? y + 1 : 8 - y;
-        return $"{file}{rank}";
+        // Clear the original position of the king
+        gameController.SetPositionEmpty(king.GetXBoard(), king.GetYBoard());
+
+        bool isKingside = matrixX == king.GetXBoard() + 2; // Determine if kingside castling
+
+        // Handle rook movement during castling
+        if (isKingside) // Kingside castling
+        {
+            Debug.Log("Kingside castling executed for " + king.name);
+
+            GameObject rook = gameController.GetPosition(king.GetXBoard() + 3, king.GetYBoard());
+            if (rook != null)
+            {
+                MoveRookDuringCastling(rook, king.GetXBoard() + 1, king.GetYBoard());
+            }
+        }
+        else // Queenside castling
+        {
+            Debug.Log("Queenside castling executed for " + king.name);
+
+            GameObject rook = gameController.GetPosition(king.GetXBoard() - 4, king.GetYBoard());
+            if (rook != null)
+            {
+                MoveRookDuringCastling(rook, king.GetXBoard() - 1, king.GetYBoard());
+            }
+        }
+
+        // Move the king to the new position
+        king.SetXBoard(matrixX);
+        king.SetYBoard(matrixY);
+        king.SetCoords();
+        gameController.SetPosition(reference); // Update the king's new position on the board
+        king.hasMoved = true;
+
+        // Record castling move
+        string castlingSAN = CoordinateSystem.GenerateSAN(
+            "king",
+            "",
+            "",
+            false,
+            true,
+            isKingside
+        );
+        Debug.Log($"Move: {castlingSAN}");
+        gameController.RecordMove(castlingSAN);
+
+        // Switch to the next player's turn
+        gameController.NextTurn();
+        king.DestroyMovePlates();
+    }
+
+    private void MoveRookDuringCastling(GameObject rook, int newX, int newY)
+    {
+        Chessman rookChessman = rook.GetComponent<Chessman>();
+        Game gameController = controller.GetComponent<Game>();
+
+        gameController.SetPositionEmpty(rookChessman.GetXBoard(), rookChessman.GetYBoard());
+        rookChessman.SetXBoard(newX);
+        rookChessman.SetYBoard(newY);
+        rookChessman.SetCoords();
+        gameController.SetPosition(rook);
+        rookChessman.hasMoved = true;
     }
 
     public void SetCoords(int x, int y)

@@ -5,12 +5,16 @@ using UnityEngine;
 public class AIPlayer : MonoBehaviour
 {
     private Game gameController;
-    private string aiPlayerColor = "black"; // Set AI to play as "black"
-    private bool hasMovedThisTurn = false; // Flag to prevent AI from acting more than once per turn
+    private string aiPlayerColor; // AI's assigned color ("white" or "black")
+    private bool hasMovedThisTurn = false; // Prevent AI from acting more than once per turn
 
     private void Start()
     {
         gameController = GameObject.FindGameObjectWithTag("GameController").GetComponent<Game>();
+
+        // Randomly assign the AI player color
+        aiPlayerColor = Random.value > 0.5f ? "black" : "white";
+        Debug.Log($"[AIPlayer] AI assigned color: {aiPlayerColor}");
     }
 
     private void Update()
@@ -18,12 +22,12 @@ public class AIPlayer : MonoBehaviour
         // Check if it's the AI's turn, the game is not over, and AI hasn't moved yet this turn
         if (!gameController.IsGameOver() && gameController.GetCurrentPlayer() == aiPlayerColor && !hasMovedThisTurn)
         {
-            hasMovedThisTurn = true; // Set flag to indicate the AI is about to move
+            hasMovedThisTurn = true; // Prevent multiple moves in the same turn
             StartCoroutine(MakeMoveAfterDelay());
         }
         else if (gameController.GetCurrentPlayer() != aiPlayerColor)
         {
-            hasMovedThisTurn = false; // Reset flag on player's turn
+            hasMovedThisTurn = false; // Reset flag when it's not AI's turn
         }
     }
 
@@ -32,14 +36,12 @@ public class AIPlayer : MonoBehaviour
         yield return new WaitForSeconds(1.0f); // Small delay for realism
 
         List<MovePlate> legalMovePlates = GetLegalMovePlates();
-        
         if (legalMovePlates.Count > 0)
         {
-            // Randomly select a MovePlate
+            // Randomly select a move
             MovePlate selectedMovePlate = legalMovePlates[Random.Range(0, legalMovePlates.Count)];
-
-            // Execute the move on the selected MovePlate's coordinates
             Chessman piece = selectedMovePlate.GetReference().GetComponent<Chessman>();
+
             ExecuteMove(piece, selectedMovePlate);
         }
     }
@@ -51,26 +53,24 @@ public class AIPlayer : MonoBehaviour
 
         foreach (var pieceObj in playerPieces)
         {
-            if (pieceObj == null) continue; // Ensure piece hasn't been destroyed
+            if (pieceObj == null) continue;
+
             Chessman piece = pieceObj.GetComponent<Chessman>();
             if (piece != null)
             {
-                // Destroy any existing MovePlates and generate new ones
+                // Generate all legal move plates for the piece
                 piece.DestroyMovePlates();
-
-                // Check for castling if the piece is a king
                 if (piece.name.Contains("king") && !piece.hasMoved)
                 {
-                    piece.CheckCastlingOptions(); // Generate castling options if the king hasn’t moved
+                    piece.CheckCastlingOptions();
                 }
                 else
                 {
                     piece.InitiateMovePlates();
                 }
 
-                // Collect all generated MovePlates for this piece
-                GameObject[] movePlates = GameObject.FindGameObjectsWithTag("MovePlate");
-                foreach (var movePlateObj in movePlates)
+                // Collect move plates
+                foreach (var movePlateObj in GameObject.FindGameObjectsWithTag("MovePlate"))
                 {
                     MovePlate movePlate = movePlateObj.GetComponent<MovePlate>();
                     if (movePlate != null && movePlate.GetReference() == pieceObj)
@@ -79,11 +79,11 @@ public class AIPlayer : MonoBehaviour
                     }
                 }
 
-                // Clean up MovePlates after collecting possible moves
-                piece.DestroyMovePlates();
+                piece.DestroyMovePlates(); // Clean up move plates after collection
             }
         }
 
+        Debug.Log($"[AIPlayer] Analyzed moves: {legalMovePlates.Count} ");
         return legalMovePlates;
     }
 
@@ -94,58 +94,77 @@ public class AIPlayer : MonoBehaviour
         int x = movePlate.matrixX;
         int y = movePlate.matrixY;
 
-        // Check if this is a castling move (king moves two squares horizontally)
+        // Determine castling
         bool isCastlingMove = piece.name.Contains("king") && Mathf.Abs(piece.GetXBoard() - x) == 2;
 
-        // Convert old and new coordinates to chess notation using the player's color
+        // Generate move in Standard Algebraic Notation (SAN)
         string oldPosition = CoordinateSystem.ConvertToChessNotation(piece.GetXBoard(), piece.GetYBoard(), aiPlayerColor);
         string newPosition = CoordinateSystem.ConvertToChessNotation(x, y, aiPlayerColor);
 
-        // Log the move in standard chess notation
-        Debug.Log($"{piece.name} moved from {oldPosition} to {newPosition}");
-
         GameObject target = gameController.GetPosition(x, y);
+        bool isCapture = target != null;
 
-        if (target != null)
+        string moveDescription;
+        if (isCastlingMove)
         {
-            if (target.name == "white_king" || target.name == "black_king")
+            moveDescription = x > piece.GetXBoard() ? "O-O" : "O-O-O"; // Kingside or Queenside castling
+        }
+        else
+        {
+            string promotedPiece = null;
+            if (piece.name.Contains("pawn") && (y == 0 || y == 7))
             {
-                gameController.Winner(aiPlayerColor);
+                promotedPiece = "Q"; // Default promotion to queen
             }
+
+            moveDescription = CoordinateSystem.GenerateSAN(piece.name, oldPosition, newPosition, isCapture, false, false, promotedPiece);
+        }
+
+        
+
+        // Handle captures
+        if (isCapture)
+        {
             Destroy(target);
         }
 
-        // If castling, move the rook to its designated castling position
+        // Handle castling-specific logic
         if (isCastlingMove)
         {
-            int rookStartX = x == 6 ? 7 : 0; // Rook starts at 7 for kingside castling, 0 for queenside
-            int rookEndX = x == 6 ? 5 : 3;   // Rook ends at 5 for kingside, 3 for queenside
-            int rookY = y; // Rook is on the same row as the king
-
-            GameObject rookObj = gameController.GetPosition(rookStartX, rookY);
-            if (rookObj != null && rookObj.GetComponent<Chessman>().name.Contains("rook"))
-            {
-                Chessman rook = rookObj.GetComponent<Chessman>();
-
-                gameController.SetPositionEmpty(rook.GetXBoard(), rook.GetYBoard());
-                rook.SetXBoard(rookEndX);
-                rook.SetYBoard(rookY);
-                rook.SetCoords();
-                gameController.SetPosition(rook.gameObject);
-            }
+            HandleCastlingMove(piece, x, y);
         }
 
-        // Move the king or other piece to the MovePlate position
+        // Move the piece
         gameController.SetPositionEmpty(piece.GetXBoard(), piece.GetYBoard());
         piece.SetXBoard(x);
         piece.SetYBoard(y);
         piece.SetCoords();
         gameController.SetPosition(piece.gameObject);
 
-        // Check for pawn promotion if the piece is a pawn
+        // Handle promotion
         piece.CheckPawnPromotion();
 
-        // Switch turns after the move
+        // Record move and switch turns
+        gameController.RecordMove(moveDescription);
         gameController.NextTurn();
+    }
+
+    private void HandleCastlingMove(Chessman king, int kingX, int kingY)
+    {
+        int rookStartX = kingX == 6 ? 7 : 0; // Kingside or Queenside
+        int rookEndX = kingX == 6 ? 5 : 3;
+
+        GameObject rookObj = gameController.GetPosition(rookStartX, kingY);
+        if (rookObj != null)
+        {
+            Chessman rook = rookObj.GetComponent<Chessman>();
+
+            // Move the rook to the appropriate position
+            gameController.SetPositionEmpty(rook.GetXBoard(), rook.GetYBoard());
+            rook.SetXBoard(rookEndX);
+            rook.SetYBoard(kingY);
+            rook.SetCoords();
+            gameController.SetPosition(rook.gameObject);
+        }
     }
 }
