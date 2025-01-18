@@ -344,13 +344,17 @@ public void MovePlateSpawn(int matrixX, int matrixY, bool isCastling = false)
     mpScript.SetCoords(matrixX, matrixY);
     mpScript.castling = isCastling; // Set castling flag
 }
+
 private bool IsKingsideCastlingPossible()
 {
     Game sc = controller.GetComponent<Game>();
 
+    // Ensure the rook and all squares between the king and rook are within board bounds
+    if (!sc.PositionOnBoard(xBoard + 1, yBoard) || !sc.PositionOnBoard(xBoard + 2, yBoard) || !sc.PositionOnBoard(xBoard + 3, yBoard))
+        return false;
+
     // Ensure squares between king and rook are empty and the rook hasn't moved
-    return sc.PositionOnBoard(xBoard + 1, yBoard) && sc.PositionOnBoard(xBoard + 2, yBoard)
-           && sc.GetPosition(xBoard + 1, yBoard) == null
+    return sc.GetPosition(xBoard + 1, yBoard) == null
            && sc.GetPosition(xBoard + 2, yBoard) == null
            && sc.GetPosition(xBoard + 3, yBoard) != null
            && sc.GetPosition(xBoard + 3, yBoard).name.Contains("rook")
@@ -361,14 +365,18 @@ private bool IsQueensideCastlingPossible()
 {
     Game sc = controller.GetComponent<Game>();
 
+    // Ensure the rook and all squares between the king and rook are within board bounds
+    if (!sc.PositionOnBoard(xBoard - 1, yBoard) || !sc.PositionOnBoard(xBoard - 2, yBoard) || !sc.PositionOnBoard(xBoard - 3, yBoard) || !sc.PositionOnBoard(xBoard - 4, yBoard))
+        return false;
+
     // Ensure squares between king and rook are empty and the rook hasn't moved
-    return sc.PositionOnBoard(xBoard - 1, yBoard) && sc.PositionOnBoard(xBoard - 2, yBoard) && sc.PositionOnBoard(xBoard - 3, yBoard)
-           && sc.GetPosition(xBoard - 1, yBoard) == null
+    return sc.GetPosition(xBoard - 1, yBoard) == null
            && sc.GetPosition(xBoard - 2, yBoard) == null
            && sc.GetPosition(xBoard - 3, yBoard) == null
            && sc.GetPosition(xBoard - 4, yBoard) != null
            && sc.GetPosition(xBoard - 4, yBoard).name.Contains("rook")
            && !sc.GetPosition(xBoard - 4, yBoard).GetComponent<Chessman>().hasMoved;
 }
+
 // Call this method in your king's InitiateMovePlates method if you want to add castling options for the king
 }

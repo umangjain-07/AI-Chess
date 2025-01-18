@@ -6,29 +6,23 @@ using UnityEngine.UI;
 
 public class Game : MonoBehaviour
 {
-    // Reference from Unity IDE
     public GameObject[] GetWhitePieces() => playerWhite;
     public GameObject[] GetBlackPieces() => playerBlack;
 
     public GameObject chesspiece;
 
-    // Board positions and player arrays
     private GameObject[,] positions = new GameObject[8, 8];
     private GameObject[] playerBlack = new GameObject[16];
     private GameObject[] playerWhite = new GameObject[16];
 
-    // Current turn and sprites for promotion
     private string currentPlayer = "white";
     public Sprite white_queen;
     public Sprite black_queen;
 
-    // Game state
     private bool gameOver = false;
 
-    // Move history
     private List<string> moveHistory = new List<string>();
 
-    // Unity calls this when the game starts
     public void Start()
     {
         playerWhite = new GameObject[] {
@@ -53,7 +47,6 @@ public class Game : MonoBehaviour
             Create("black_pawn", 6, 6), Create("black_pawn", 7, 6)
         };
 
-        // Set all piece positions on the board
         for (int i = 0; i < playerBlack.Length; i++)
         {
             SetPosition(playerBlack[i]);
@@ -61,7 +54,6 @@ public class Game : MonoBehaviour
         }
     }
 
-    // Method to create a chess piece
     public GameObject Create(string name, int x, int y)
     {
         GameObject obj = Instantiate(chesspiece, new Vector3(0, 0, -1), Quaternion.identity);
@@ -73,60 +65,51 @@ public class Game : MonoBehaviour
         return obj;
     }
 
-    // Set a piece on the board
     public void SetPosition(GameObject obj)
     {
         Chessman cm = obj.GetComponent<Chessman>();
         positions[cm.GetXBoard(), cm.GetYBoard()] = obj;
     }
 
-    // Mark a board position as empty
     public void SetPositionEmpty(int x, int y)
     {
         positions[x, y] = null;
     }
 
-    // Get a piece at a specific board position
     public GameObject GetPosition(int x, int y)
     {
         return positions[x, y];
     }
 
-    // Check if a position is on the board
     public bool PositionOnBoard(int x, int y)
     {
         return (x >= 0 && y >= 0 && x < positions.GetLength(0) && y < positions.GetLength(1));
     }
 
-    // Get the current player
     public string GetCurrentPlayer()
     {
         return currentPlayer;
     }
 
-    // Check if the game is over
     public bool IsGameOver()
     {
         return gameOver;
     }
 
-    // Switch to the next turn
     public void NextTurn()
     {
         currentPlayer = (currentPlayer == "white") ? "black" : "white";
     }
 
-    // Unity update method for game state
     public void Update()
     {
         if (gameOver && Input.GetMouseButtonDown(0))
         {
             gameOver = false;
-            SceneManager.LoadScene("Game"); // Restart the game
+            SceneManager.LoadScene("Game");
         }
     }
 
-    // Handle game over and winner display
     public void Winner(string playerWinner)
     {
         gameOver = true;
@@ -136,16 +119,41 @@ public class Game : MonoBehaviour
         GameObject.FindGameObjectWithTag("RestartText").GetComponent<Text>().text = "Checkmate";
     }
 
-    // Record a move in history
     public void RecordMove(string move)
     {
         moveHistory.Add(move);
         Debug.Log($"Move: {move}");
     }
 
-    // Get the move history
     public List<string> GetMoveHistory()
     {
         return moveHistory;
+    }
+
+    /// <summary>
+    /// Get all active pieces on the board (both white and black).
+    /// </summary>
+    /// <returns>A list of all active chess piece GameObjects.</returns>
+    public List<GameObject> GetAllPieces()
+    {
+        List<GameObject> allPieces = new List<GameObject>();
+
+        foreach (var piece in playerWhite)
+        {
+            if (piece != null)
+            {
+                allPieces.Add(piece);
+            }
+        }
+
+        foreach (var piece in playerBlack)
+        {
+            if (piece != null)
+            {
+                allPieces.Add(piece);
+            }
+        }
+
+        return allPieces;
     }
 }
